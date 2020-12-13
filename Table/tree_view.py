@@ -134,13 +134,17 @@ class PandasModel(QtCore.QAbstractTableModel):
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
         # print("--- data:{} ---".format(index))
-        if role != QtCore.Qt.DisplayRole:
-            return None
+        if role == QtCore.Qt.DisplayRole:
+            if not index.isValid():
+                return None
+            return str(self._df.iloc[index.row(), index.column()])
 
-        if not index.isValid():
+        elif role == QtCore.Qt.UserRole:
+            if not index.isValid():
+                return None
+            return self._df.iloc[index.row(), index.column()]
+        else:
             return None
-
-        return str(self._df.iloc[index.row(), index.column()])
 
     """
     def setData(self, index, value, role):
@@ -275,8 +279,8 @@ class TreeView(QMainWindow):
             print("-----")
             r = model_index.row()
             for j in range(model.columnCount()):
-                txt = proxy.index(r, j, model_index).data()
-                print(" a:{}".format(txt))
+                txt = proxy.index(r, j, model_index).data(role=QtCore.Qt.UserRole)
+                print(" a:{}/{}".format(txt, type(txt)))
 
         """
         for ix in tv.selectedIndexes():
