@@ -8,7 +8,7 @@ from PySide2.QtWidgets import QMainWindow, QHeaderView
 from PySide2.QtWidgets import QTableWidgetItem, QAction, QMenu
 from PySide2.QtCore import QFile, QDate, Qt
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtGui import QFont, QPalette
+from PySide2.QtGui import QFont, QColor
 
 data_mat = [
     ["2020/09/01", "1:00", 0, 101, 110, 91, 106],
@@ -84,9 +84,10 @@ df = pd.DataFrame({'site_codes': ['01', '02', '03', '04'],
 
 class PandasModel(QtCore.QAbstractTableModel):
     def __init__(self, df=pd.DataFrame(), parent=None):
-        QtCore.QAbstractTableModel.__init__(self, parent=parent)
+        super().__init__(parent)
         self._df = df.copy()
-        self.bolds = dict()
+        self._bolds = dict()
+        self._colors = dict()
 
     def toDataFrame(self):
         return self._df.copy()
@@ -99,7 +100,11 @@ class PandasModel(QtCore.QAbstractTableModel):
                 except (IndexError,):
                     return None
             elif role == QtCore.Qt.FontRole:
-                return self.bolds.get(section, None)
+                return self._bolds.get(section, None)
+
+            elif role == QtCore.Qt.ForegroundRole:
+                return self._colors.get(section, None)
+
         elif orientation == QtCore.Qt.Vertical:
             if role == QtCore.Qt.DisplayRole:
                 try:
@@ -109,11 +114,19 @@ class PandasModel(QtCore.QAbstractTableModel):
                     return None
         return None
 
-    def setFont(self, section, font):
-        self.bolds[section] = font
+    def setFiltered(self, section, isFiltered):
+        print("--- setIsFiltered ---")
+        font = QFont()
+        color = QColor()
+        if isFiltered:
+            font.setBold(True)
+            color.setBlue(255)
+        self._bolds[section] = font
+        self._colors[section] = color
         self.headerDataChanged.emit(QtCore.Qt.Horizontal, 0, self.columnCount())
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
+        # print("--- data ---")
         if role != QtCore.Qt.DisplayRole:
             return None
 
@@ -122,19 +135,23 @@ class PandasModel(QtCore.QAbstractTableModel):
 
         return str(self._df.iloc[index.row(), index.column()])
 
+    """
     def setData(self, index, value, role):
         row = self._df.index[index.row()]
         col = self._df.columns[index.column()]
         if hasattr(value, 'toPyObject'):
+            print("AAAAAAAAAAAAAAAAAAAAAAA")
             # PyQt4 gets a QVariant
             value = value.toPyObject()
         else:
+            print("BBBBBBBBBBBBBBBBBBBBBBB")
             # PySide gets an unicode
             dtype = self._df[col].dtype
             if dtype != object:
                 value = None if value == '' else dtype.type(value)
         self._df.set_value(row, col, value)
         return True
+    """
 
     def rowCount(self, parent=QtCore.QModelIndex()):
         return len(self._df.index)
@@ -143,6 +160,7 @@ class PandasModel(QtCore.QAbstractTableModel):
         return len(self._df.columns)
 
     def sort(self, column, order):
+        print("--- sort ---")
         colname = self._df.columns.tolist()[column]
         self.layoutAboutToBeChanged.emit()
         self._df.sort_values(colname, ascending=order == QtCore.Qt.AscendingOrder, inplace=True)
@@ -275,7 +293,7 @@ class TreeView(QMainWindow):
         model = self._ui.treeView.model().sourceModel()
         font = QFont()
         font.setBold(False)
-        model.setFont(filterColumn, font)
+        model.setFiltered(filterColumn, False)
 
     def on_signalMapper_mapped(self, i):
         print("--- on_signalMapper_mapped[{}] ---".format(i))
@@ -286,7 +304,8 @@ class TreeView(QMainWindow):
         font = QFont()
         font.setBold(True)
         model = proxy.sourceModel()
-        model.setFont(filterColumn, font)
+        model.setFiltered(filterColumn, True)
+
 
 if __name__ == "__main__":
     from PySide2.QtCore import QCoreApplication
