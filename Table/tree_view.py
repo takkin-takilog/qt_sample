@@ -83,14 +83,22 @@ df = pd.DataFrame({'site_codes': ['01', '02', '03', '04'],
 
 
 class PandasModel(QtCore.QAbstractTableModel):
+
     def __init__(self, df=pd.DataFrame(), parent=None):
         super().__init__(parent)
-        self._df = df.copy()
+        self._df_index_names = df.index.names
+        print("----- index_names -----")
+        print(" {}".format(self._df_index_names))
+        self._df = df.reset_index()
         self._bolds = dict()
         self._colors = dict()
 
     def toDataFrame(self):
-        return self._df.copy()
+        print("--- toDataFrame ---")
+        return self._df.set_index(self._df_index_names)
+
+    def getColumnUnique(self, column_index):
+        return self._df.iloc[:, column_index].unique()
 
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal:
@@ -108,7 +116,6 @@ class PandasModel(QtCore.QAbstractTableModel):
         elif orientation == QtCore.Qt.Vertical:
             if role == QtCore.Qt.DisplayRole:
                 try:
-                    # return self.df.index.tolist()
                     return self._df.index.tolist()[section]
                 except (IndexError,):
                     return None
@@ -126,7 +133,7 @@ class PandasModel(QtCore.QAbstractTableModel):
         self.headerDataChanged.emit(QtCore.Qt.Horizontal, 0, self.columnCount())
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
-        # print("--- data ---")
+        # print("--- data:{} ---".format(index))
         if role != QtCore.Qt.DisplayRole:
             return None
 
@@ -159,12 +166,23 @@ class PandasModel(QtCore.QAbstractTableModel):
     def columnCount(self, parent=QtCore.QModelIndex()):
         return len(self._df.columns)
 
+    """
     def sort(self, column, order):
         print("--- sort ---")
         colname = self._df.columns.tolist()[column]
         self.layoutAboutToBeChanged.emit()
         self._df.sort_values(colname, ascending=order == QtCore.Qt.AscendingOrder, inplace=True)
         self._df.reset_index(inplace=True, drop=True)
+        self.layoutChanged.emit()
+    """
+
+    def sortColumn(self, column, ascending):
+        print("--- sortColumn ---")
+        colname = self._df.columns.tolist()[column]
+        self.layoutAboutToBeChanged.emit()
+        self._df.sort_values(colname, ascending=ascending, inplace=True)
+        self._df.reset_index(inplace=True, drop=True)
+        print(self._df)
         self.layoutChanged.emit()
 
 
@@ -213,6 +231,9 @@ class TreeView(QMainWindow):
         callback = self.on_view_header_sectionClicked
         header.sectionClicked.connect(callback)
 
+        callback = self._on_pushButton_clicked
+        ui.pushButton.clicked.connect(callback)
+
         self._ui = ui
 
     def _load_ui(self, parent):
@@ -244,6 +265,26 @@ class TreeView(QMainWindow):
         # ui.treeView.resizeColumnsToContents()
         print("finished loading sites")
 
+    def _on_pushButton_clicked(self):
+        model = self._ui.treeView.model().sourceModel()
+        print(model.toDataFrame())
+        tv = self._ui.treeView
+        proxy = self._ui.treeView.model()
+        model_index_list = tv.selectionModel().selectedRows()
+        for model_index in model_index_list:
+            print("-----")
+            r = model_index.row()
+            for j in range(model.columnCount()):
+                txt = proxy.index(r, j, model_index).data()
+                print(" a:{}".format(txt))
+
+        """
+        for ix in tv.selectedIndexes():
+            print("AAAAAAAAAAAAAAAAA")
+            text = ix.data(Qt.DisplayRole) # or ix.data()
+            print(text)
+        """
+
     def on_view_header_sectionClicked(self, logicalIndex):
         print("--- on_view_header_sectionClicked ---")
 
@@ -252,16 +293,26 @@ class TreeView(QMainWindow):
         self.signalMapper = QtCore.QSignalMapper(self)
 
         model = self._ui.treeView.model().sourceModel()
-        valuesUnique = model._df.iloc[:, self.logicalIndex].unique()
+        # valuesUnique = model._df.iloc[:, self.logicalIndex].unique()
+        valuesUnique = model.getColumnUnique(self.logicalIndex)
 
-        #actionAll = QAction("All", self)
-        actionAll = QAction("All")
-        actionAll.triggered.connect(self.on_actionAll_triggered)
-        self.menuValues.addAction(actionAll)
+        # actAll = QAction("All", self)
+        actAll = QAction("All")
+        actAll.triggered.connect(self.on_actionAll_triggered)
+        self.menuValues.addAction(actAll)
         self.menuValues.addSeparator()
-        for actionNumber, actionName in enumerate(sorted(list(set(valuesUnique)))):
-            action = QAction(str(actionName), self)
-            self.signalMapper.setMapping(action, actionNumber)
+
+        actOrderAsc = QAction("Order Asc")
+        actOrderAsc.triggered.connect(self.on_actionOrderAsc_triggered)
+        self.menuValues.addAction(actOrderAsc)
+        actOrderDes = QAction("Order Des")
+        actOrderDes.triggered.connect(self.on_actionOrderDes_triggered)
+        self.menuValues.addAction(actOrderDes)
+        self.menuValues.addSeparator()
+
+        for actNumber, actName in enumerate(sorted(list(set(valuesUnique)))):
+            action = QAction(str(actName), self)
+            self.signalMapper.setMapping(action, actNumber)
             action.triggered.connect(self.signalMapper.map)
             self.menuValues.addAction(action)
         self.signalMapper.mapped.connect(self.on_signalMapper_mapped)
@@ -291,9 +342,19 @@ class TreeView(QMainWindow):
         proxy.setFilter("", filterColumn)
 
         model = self._ui.treeView.model().sourceModel()
-        font = QFont()
-        font.setBold(False)
         model.setFiltered(filterColumn, False)
+
+    def on_actionOrderAsc_triggered(self):
+        print("--- on_actionOrderAsc_triggered ---")
+        orderColumn = self.logicalIndex
+        model = self._ui.treeView.model().sourceModel()
+        model.sortColumn(orderColumn, True)
+
+    def on_actionOrderDes_triggered(self):
+        print("--- on_actionOrderDes_triggered ---")
+        orderColumn = self.logicalIndex
+        model = self._ui.treeView.model().sourceModel()
+        model.sortColumn(orderColumn, False)
 
     def on_signalMapper_mapped(self, i):
         print("--- on_signalMapper_mapped[{}] ---".format(i))
