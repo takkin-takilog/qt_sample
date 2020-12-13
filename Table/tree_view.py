@@ -8,9 +8,8 @@ from PySide2.QtWidgets import QMainWindow, QHeaderView
 from PySide2.QtWidgets import QTableWidgetItem, QAction, QMenu
 from PySide2.QtCore import QFile, QDate, Qt
 from PySide2.QtUiTools import QUiLoader
-from PySide2.QtGui import QFont
+from PySide2.QtGui import QFont, QPalette
 
-"""
 data_mat = [
     ["2020/09/01", "1:00", 0, 101, 110, 91, 106],
     ["2020/09/01", "2:00", 0, 102, 112, 90, 103],
@@ -76,7 +75,6 @@ data_mat = [
 df_org = pd.DataFrame(data_mat,
                       columns=["Date", "Time", "Goto", "o", "h", "l", "c"])
 df_org.set_index("Date", inplace=True)
-"""
 
 df = pd.DataFrame({'site_codes': ['01', '02', '03', '04'],
                    'status': ['open', 'open', 'open', 'closed'],
@@ -192,10 +190,10 @@ class TreeView(QMainWindow):
 
         self.load_sites(ui)
 
-        self.header = ui.treeView.header()
-        self.header.setSectionsClickable(True)
+        header = ui.treeView.header()
+        header.setSectionsClickable(True)
         callback = self.on_view_header_sectionClicked
-        self.header.sectionClicked.connect(callback)
+        header.sectionClicked.connect(callback)
 
         self._ui = ui
 
@@ -220,10 +218,11 @@ class TreeView(QMainWindow):
                            'data_quality': ['poor', 'moderate', 'high', 'high']})
         """
 
-        self.model = PandasModel(df)
-        self.proxy = CustomProxyModel(self)
-        self.proxy.setSourceModel(self.model)
-        ui.treeView.setModel(self.proxy)
+        model = PandasModel(df_org)
+        proxy = CustomProxyModel(self)
+        proxy.setSourceModel(model)
+        ui.treeView.setModel(proxy)
+
         # ui.treeView.resizeColumnsToContents()
         print("finished loading sites")
 
@@ -233,13 +232,9 @@ class TreeView(QMainWindow):
         self.logicalIndex = logicalIndex
         self.menuValues = QMenu(self)
         self.signalMapper = QtCore.QSignalMapper(self)
-        """
-        self.comboBox.blockSignals(True)
-        self.comboBox.setCurrentIndex(self.logicalIndex)
-        self.comboBox.blockSignals(True)
-        """
 
-        valuesUnique = self.model._df.iloc[:, self.logicalIndex].unique()
+        model = self._ui.treeView.model().sourceModel()
+        valuesUnique = model._df.iloc[:, self.logicalIndex].unique()
 
         #actionAll = QAction("All", self)
         actionAll = QAction("All")
@@ -247,22 +242,23 @@ class TreeView(QMainWindow):
         self.menuValues.addAction(actionAll)
         self.menuValues.addSeparator()
         for actionNumber, actionName in enumerate(sorted(list(set(valuesUnique)))):
-            #action = QAction(actionName, self)
-            print(type(actionName))
-            print(actionName)
-            action = QAction(actionName)
+            action = QAction(str(actionName), self)
             self.signalMapper.setMapping(action, actionNumber)
             action.triggered.connect(self.signalMapper.map)
             self.menuValues.addAction(action)
         self.signalMapper.mapped.connect(self.on_signalMapper_mapped)
-        headerPos = self._ui.treeView.mapToGlobal(self.header.pos())
-        posY = headerPos.y() + self.header.height()
-        posX = headerPos.x() + self.header.sectionPosition(self.logicalIndex)
+
+        header = self._ui.treeView.header()
+
+        headerPos = self._ui.treeView.mapToGlobal(header.pos())
+        posY = headerPos.y() + header.height()
+        posX = headerPos.x() + header.sectionPosition(self.logicalIndex)
 
         self.menuValues.exec_(QtCore.QPoint(posX, posY))
 
     def on_actionAll_triggered(self):
         print("--- on_actionAll_triggered ---")
+        """
         filterColumn = self.logicalIndex
         filterString = QtCore.QRegExp("",
                                       QtCore.Qt.CaseInsensitive,
@@ -271,16 +267,26 @@ class TreeView(QMainWindow):
 
         self.proxy.setFilterRegExp(filterString)
         self.proxy.setFilterKeyColumn(filterColumn)
+        """
+        filterColumn = self.logicalIndex
+        proxy = self._ui.treeView.model()
+        proxy.setFilter("", filterColumn)
+
+        model = self._ui.treeView.model().sourceModel()
+        font = QFont()
+        font.setBold(False)
+        model.setFont(filterColumn, font)
 
     def on_signalMapper_mapped(self, i):
         print("--- on_signalMapper_mapped[{}] ---".format(i))
         stringAction = self.signalMapper.mapping(i).text()
         filterColumn = self.logicalIndex
-        self.proxy.setFilter(stringAction, filterColumn)
+        proxy = self._ui.treeView.model()
+        proxy.setFilter(stringAction, filterColumn)
         font = QFont()
         font.setBold(True)
-        self.model.setFont(filterColumn, font)
-
+        model = proxy.sourceModel()
+        model.setFont(filterColumn, font)
 
 if __name__ == "__main__":
     from PySide2.QtCore import QCoreApplication
