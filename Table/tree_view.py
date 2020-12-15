@@ -99,9 +99,11 @@ class PandasModel(QAbstractTableModel):
         return self._df.set_index(self._df_index_names)
 
     def getColumnUnique(self, column_index):
+        print("--- getColumnUnique ---")
         return self._df.iloc[:, column_index].unique()
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
+        print("--- headerData ---")
         if orientation == Qt.Horizontal:
             if role == Qt.DisplayRole:
                 try:
@@ -134,7 +136,7 @@ class PandasModel(QAbstractTableModel):
         self.headerDataChanged.emit(Qt.Horizontal, 0, self.columnCount())
 
     def data(self, index, role=Qt.DisplayRole):
-        # print("--- data:{} ---".format(index))
+        print("--- data:{} ---".format(index))
         if role == Qt.DisplayRole:
             if not index.isValid():
                 return None
@@ -229,12 +231,23 @@ class TreeView(QMainWindow):
         # self.resize(ui.frameSize())
         self.setWindowTitle("Tree View")
 
-        self.load_sites(ui)
+        df = pd.DataFrame({'site_codes': ['01', '02', '03', '04'],
+                           'status': ['open', 'open', 'open', 'closed'],
+                           'Location': ['east', 'north', 'south', 'east'],
+                           'data_quality': ['poor', 'moderate', 'high', 'high']})
+
+        model = PandasModel(df)
+        proxy = CustomProxyModel()
+        proxy.setSourceModel(model)
+        ui.treeView.setModel(proxy)
 
         header = ui.treeView.header()
         header.setSectionsClickable(True)
         callback = self.on_view_header_sectionClicked
         header.sectionClicked.connect(callback)
+
+        callback = self._on_pushButton_setData_clicked
+        ui.pushButton_setData.clicked.connect(callback)
 
         callback = self._on_pushButton_clicked
         ui.pushButton.clicked.connect(callback)
@@ -253,22 +266,6 @@ class TreeView(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-
-    def load_sites(self, ui):
-        """
-        df = pd.DataFrame({'site_codes': ['01', '02', '03', '04'],
-                           'status': ['open', 'open', 'open', 'closed'],
-                           'Location': ['east', 'north', 'south', 'east'],
-                           'data_quality': ['poor', 'moderate', 'high', 'high']})
-        """
-
-        model = PandasModel(df_org)
-        proxy = CustomProxyModel(self)
-        proxy.setSourceModel(model)
-        ui.treeView.setModel(proxy)
-
-        # ui.treeView.resizeColumnsToContents()
-        print("finished loading sites")
 
     def _on_pushButton_clicked(self):
         model = self._ui.treeView.model().sourceModel()
@@ -296,6 +293,12 @@ class TreeView(QMainWindow):
             text = ix.data(Qt.DisplayRole) # or ix.data()
             print(text)
         """
+    def _on_pushButton_setData_clicked(self):
+        print("--- on_pushButton_setData_clicked ---")
+        model = PandasModel(df_org)
+        proxy = CustomProxyModel()
+        proxy.setSourceModel(model)
+        self._ui.treeView.setModel(proxy)
 
     def on_view_header_sectionClicked(self, logicalIndex):
         print("--- on_view_header_sectionClicked ---")
