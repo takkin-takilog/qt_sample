@@ -6,7 +6,8 @@ from PySide2.QtCore import Qt, QDateTime, QDate, QTime, QPointF, QLineF
 from PySide2.QtWidgets import QApplication
 from PySide2.QtWidgets import QMainWindow, QHeaderView
 from PySide2.QtWidgets import QTableWidgetItem, QAction, QMenu
-from PySide2.QtCore import QFile, QDate, Qt
+from PySide2.QtCore import QFile, QDate, Qt, QRegExp, QPoint
+from PySide2.QtCore import QAbstractTableModel, QSortFilterProxyModel, QSignalMapper
 from PySide2.QtUiTools import QUiLoader
 from PySide2.QtGui import QFont, QColor
 
@@ -82,7 +83,7 @@ df = pd.DataFrame({'site_codes': ['01', '02', '03', '04'],
                    'data_quality': ['poor', 'moderate', 'high', 'high']})
 
 
-class PandasModel(QtCore.QAbstractTableModel):
+class PandasModel(QAbstractTableModel):
 
     def __init__(self, df=pd.DataFrame(), parent=None):
         super().__init__(parent)
@@ -100,21 +101,21 @@ class PandasModel(QtCore.QAbstractTableModel):
     def getColumnUnique(self, column_index):
         return self._df.iloc[:, column_index].unique()
 
-    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
-        if orientation == QtCore.Qt.Horizontal:
-            if role == QtCore.Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal:
+            if role == Qt.DisplayRole:
                 try:
                     return self._df.columns.tolist()[section]
                 except (IndexError,):
                     return None
-            elif role == QtCore.Qt.FontRole:
+            elif role == Qt.FontRole:
                 return self._bolds.get(section, None)
 
-            elif role == QtCore.Qt.ForegroundRole:
+            elif role == Qt.ForegroundRole:
                 return self._colors.get(section, None)
 
-        elif orientation == QtCore.Qt.Vertical:
-            if role == QtCore.Qt.DisplayRole:
+        elif orientation == Qt.Vertical:
+            if role == Qt.DisplayRole:
                 try:
                     return self._df.index.tolist()[section]
                 except (IndexError,):
@@ -130,16 +131,16 @@ class PandasModel(QtCore.QAbstractTableModel):
             color.setBlue(255)
         self._bolds[section] = font
         self._colors[section] = color
-        self.headerDataChanged.emit(QtCore.Qt.Horizontal, 0, self.columnCount())
+        self.headerDataChanged.emit(Qt.Horizontal, 0, self.columnCount())
 
-    def data(self, index, role=QtCore.Qt.DisplayRole):
+    def data(self, index, role=Qt.DisplayRole):
         # print("--- data:{} ---".format(index))
-        if role == QtCore.Qt.DisplayRole:
+        if role == Qt.DisplayRole:
             if not index.isValid():
                 return None
             return str(self._df.iloc[index.row(), index.column()])
 
-        elif role == QtCore.Qt.UserRole:
+        elif role == Qt.UserRole:
             if not index.isValid():
                 return None
             return self._df.iloc[index.row(), index.column()]
@@ -175,7 +176,7 @@ class PandasModel(QtCore.QAbstractTableModel):
         print("--- sort ---")
         colname = self._df.columns.tolist()[column]
         self.layoutAboutToBeChanged.emit()
-        self._df.sort_values(colname, ascending=order == QtCore.Qt.AscendingOrder, inplace=True)
+        self._df.sort_values(colname, ascending=order == Qt.AscendingOrder, inplace=True)
         self._df.reset_index(inplace=True, drop=True)
         self.layoutChanged.emit()
     """
@@ -190,7 +191,7 @@ class PandasModel(QtCore.QAbstractTableModel):
         self.layoutChanged.emit()
 
 
-class CustomProxyModel(QtCore.QSortFilterProxyModel):
+class CustomProxyModel(QSortFilterProxyModel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -210,8 +211,8 @@ class CustomProxyModel(QtCore.QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row, source_parent):
         for column, expresion in self.filters.items():
             text = self.sourceModel().index(source_row, column, source_parent).data()
-            regex = QtCore.QRegExp(
-                expresion, QtCore.Qt.CaseInsensitive, QtCore.QRegExp.RegExp
+            regex = QRegExp(
+                expresion, Qt.CaseInsensitive, QRegExp.RegExp
             )
             if regex.indexIn(text) == -1:
                 return False
@@ -275,12 +276,19 @@ class TreeView(QMainWindow):
         tv = self._ui.treeView
         proxy = self._ui.treeView.model()
         model_index_list = tv.selectionModel().selectedRows()
+        mat = []
         for model_index in model_index_list:
-            print("-----")
             r = model_index.row()
+            row_ = []
             for j in range(model.columnCount()):
-                txt = proxy.index(r, j, model_index).data(role=QtCore.Qt.UserRole)
-                print(" a:{}/{}".format(txt, type(txt)))
+                txt = proxy.index(r, j, model_index).data(role=Qt.UserRole)
+                row_.append(txt)
+            mat.append(row_)
+        df = pd.DataFrame(mat,
+                          columns=["Date", "Time", "Goto", "o", "h", "l", "c"])
+        print("-----")
+        df.set_index("Date", inplace=True)
+        print(df)
 
         """
         for ix in tv.selectedIndexes():
@@ -294,7 +302,7 @@ class TreeView(QMainWindow):
 
         self.logicalIndex = logicalIndex
         self.menuValues = QMenu(self)
-        self.signalMapper = QtCore.QSignalMapper(self)
+        self.signalMapper = QSignalMapper(self)
 
         model = self._ui.treeView.model().sourceModel()
         # valuesUnique = model._df.iloc[:, self.logicalIndex].unique()
@@ -327,16 +335,16 @@ class TreeView(QMainWindow):
         posY = headerPos.y() + header.height()
         posX = headerPos.x() + header.sectionPosition(self.logicalIndex)
 
-        self.menuValues.exec_(QtCore.QPoint(posX, posY))
+        self.menuValues.exec_(QPoint(posX, posY))
 
     def on_actionAll_triggered(self):
         print("--- on_actionAll_triggered ---")
         """
         filterColumn = self.logicalIndex
-        filterString = QtCore.QRegExp("",
-                                      QtCore.Qt.CaseInsensitive,
-                                      QtCore.QRegExp.RegExp
-                                      )
+        filterString = QRegExp("",
+                               Qt.CaseInsensitive,
+                               QRegExp.RegExp
+                               )
 
         self.proxy.setFilterRegExp(filterString)
         self.proxy.setFilterKeyColumn(filterColumn)
