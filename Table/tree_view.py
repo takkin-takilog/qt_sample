@@ -8,8 +8,10 @@ from PySide2.QtWidgets import QMainWindow, QHeaderView
 from PySide2.QtWidgets import QTableWidgetItem, QAction, QMenu
 from PySide2.QtCore import QFile, QDate, Qt, QRegExp, QPoint
 from PySide2.QtCore import QAbstractTableModel, QSortFilterProxyModel, QSignalMapper
+from PySide2.QtCore import QItemSelectionModel
 from PySide2.QtUiTools import QUiLoader
 from PySide2.QtGui import QFont, QColor
+from PySide2.QtGui import QStandardItemModel, QStandardItem
 
 data_mat = [
     ["2020/09/01", "1:00", 0, 101, 110, 91, 106],
@@ -103,7 +105,7 @@ class PandasModel(QAbstractTableModel):
         return self._df.iloc[:, column_index].unique()
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        print("--- headerData ---")
+        # print("--- headerData ---")
         if orientation == Qt.Horizontal:
             if role == Qt.DisplayRole:
                 try:
@@ -136,7 +138,7 @@ class PandasModel(QAbstractTableModel):
         self.headerDataChanged.emit(Qt.Horizontal, 0, self.columnCount())
 
     def data(self, index, role=Qt.DisplayRole):
-        print("--- data:{} ---".format(index))
+        # print("--- data:{} ---".format(index))
         if role == Qt.DisplayRole:
             if not index.isValid():
                 return None
@@ -236,10 +238,22 @@ class TreeView(QMainWindow):
                            'Location': ['east', 'north', 'south', 'east'],
                            'data_quality': ['poor', 'moderate', 'high', 'high']})
 
+        """
+        qstd_itm_mdl = QStandardItemModel()
+        sel_mdl = QItemSelectionModel(qstd_itm_mdl)
+        callback = self._on_selection_ttm_changed
+        sel_mdl.selectionChanged.connect(callback)
+        ui.treeView.setSelectionModel(sel_mdl)
+        """
+
         model = PandasModel(df)
         proxy = CustomProxyModel()
         proxy.setSourceModel(model)
         ui.treeView.setModel(proxy)
+
+        selmdl = ui.treeView.selectionModel()
+        callback = self._on_selection_changed
+        selmdl.selectionChanged.connect(callback)
 
         header = ui.treeView.header()
         header.setSectionsClickable(True)
@@ -267,12 +281,17 @@ class TreeView(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
 
+    def _on_selection_changed(self, selected, _):
+        print("--- _on_selection_changed ---")
+        print(" selected:{}".format(selected))
+
     def _on_pushButton_clicked(self):
         model = self._ui.treeView.model().sourceModel()
         print(model.toDataFrame())
         tv = self._ui.treeView
         proxy = self._ui.treeView.model()
         model_index_list = tv.selectionModel().selectedRows()
+
         mat = []
         for model_index in model_index_list:
             r = model_index.row()
@@ -299,6 +318,10 @@ class TreeView(QMainWindow):
         proxy = CustomProxyModel()
         proxy.setSourceModel(model)
         self._ui.treeView.setModel(proxy)
+
+        selmdl = self._ui.treeView.selectionModel()
+        callback = self._on_selection_changed
+        selmdl.selectionChanged.connect(callback)
 
     def on_view_header_sectionClicked(self, logicalIndex):
         print("--- on_view_header_sectionClicked ---")
