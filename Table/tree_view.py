@@ -327,8 +327,8 @@ class TreeView(QMainWindow):
         print("--- on_view_header_sectionClicked ---")
 
         self.logicalIndex = logicalIndex
-        self.menuValues = QMenu(self)
-        self.signalMapper = QSignalMapper(self)
+        self.menuValues = QMenu()
+        self.signalMapper = QSignalMapper()
 
         model = self._ui.treeView.model().sourceModel()
         # valuesUnique = model._df.iloc[:, self.logicalIndex].unique()
@@ -400,8 +400,6 @@ class TreeView(QMainWindow):
         filterColumn = self.logicalIndex
         proxy = self._ui.treeView.model()
         proxy.setFilter(stringAction, filterColumn)
-        font = QFont()
-        font.setBold(True)
         model = proxy.sourceModel()
         model.setFiltered(filterColumn, True)
 
